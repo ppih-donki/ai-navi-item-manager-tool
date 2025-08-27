@@ -1,0 +1,1 @@
+# ai-navi-item-manager-tool
