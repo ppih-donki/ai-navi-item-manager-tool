@@ -1,4 +1,3 @@
-
 // --- Gate (defense in depth) ---
 (function(){
   try{
@@ -550,6 +549,8 @@ function updateMapTransform() {
     // ズームレベルに応じてマーカーサイズを更新
     allMarkers.forEach(marker => {
       updateMarkerSize(marker);
+      // ★ 追加：サイズ更新後に位置再計算（中心合わせを維持）
+      positionMarker(marker);
     });
   }
 }
@@ -572,6 +573,41 @@ function updateMarkerSize(marker) {
   }
 }
 
+// ★ 追加：現在のマーカーCSS幅（px）を取得
+function getMarkerPixelSize(marker) {
+  const style = window.getComputedStyle(marker);
+  const w = parseFloat(style.width) || 0;
+  const h = parseFloat(style.height) || 0;
+  // 正円/正方形想定なので幅基準でOK（高さとの差があっても半径補正の目的は満たす）
+  return Math.max(w, h);
+}
+
+// ★ 追加：中心合わせで left/top を再計算して適用
+function positionMarker(marker) {
+  const img = (mapContentElement && mapContentElement.querySelector("img")) || document.querySelector("#mapContainer img");
+  if (!img) return;
+
+  const imageNaturalWidth = img.naturalWidth;
+  const imageNaturalHeight = img.naturalHeight;
+  const imageDisplayWidth = img.clientWidth;
+  const imageDisplayHeight = img.clientHeight;
+
+  if (!imageNaturalWidth || !imageNaturalHeight) return;
+
+  const scaleX = imageDisplayWidth / imageNaturalWidth;
+  const scaleY = imageDisplayHeight / imageNaturalHeight;
+
+  const originalX = parseFloat(marker.dataset.originalX);
+  const originalY = parseFloat(marker.dataset.originalY);
+  if (Number.isNaN(originalX) || Number.isNaN(originalY)) return;
+
+  const markerSize = getMarkerPixelSize(marker);
+  const left = originalX * scaleX - markerSize / 2;
+  const top  = originalY * scaleY - markerSize / 2;
+
+  marker.style.left = `${left}px`;
+  marker.style.top  = `${top}px`;
+}
 
 // 指定エリアにズーム
 function zoomToArea(centerX, centerY, targetZoom) {
@@ -810,19 +846,35 @@ function renderMarkers(mapImage) {
     
     const m = document.createElement("div");
     m.className = `marker ${hasProducts ? 'marker-with-products' : 'marker-empty'}`;
-    // pixel座標にスケールを適用して表示位置を決定
-    m.style.left = `${shelfData.x * scaleX}px`;
-    m.style.top = `${shelfData.y * scaleY}px`;
     m.textContent = shelf_id.split("_")[2];
     m.dataset.shelfId = shelf_id;
     m.dataset.hasProducts = hasProducts.toString();
+
+    // ★ 追加：元のピクセル座標を保持（中心合わせ再計算に使用）
+    m.dataset.originalX = String(shelfData.x);
+    m.dataset.originalY = String(shelfData.y);
     
     // ズームレベルに応じたマーカーサイズクラスを追加
     updateMarkerSize(m);
+
+    // ★ 変更：中心合わせで配置（markerSize/2 を減算）
+    // まずは仮の位置を設定しDOMに追加 → 幅が確定 → 正しい中心補正で再配置
+    m.style.left = `${shelfData.x * scaleX}px`;
+    m.style.top  = `${shelfData.y * scaleY}px`;
     
-    // 現在の表示状態を適用
-    if (!markersVisible) {
-      m.style.display = "none";
+    // マップコンテンツ内にマーカーを追加
+    const mapContent = document.getElementById("mapContent");
+    if (mapContent) {
+      mapContent.appendChild(m);
+      allMarkers.push(m); // 参照を保持
+
+      // 現在の表示状態を適用
+      if (!markersVisible) {
+        m.style.display = "none";
+      }
+
+      // DOM反映後に中心補正を適用
+      positionMarker(m);
     }
     
     m.addEventListener("click", async (e) => {
@@ -835,13 +887,6 @@ function renderMarkers(mapImage) {
       // 棚選択処理 - APIから最新の商品データを取得
       await loadShelfProducts(shelf_id);
     });
-    
-    // マップコンテンツ内にマーカーを追加
-    const mapContent = document.getElementById("mapContent");
-    if (mapContent) {
-      mapContent.appendChild(m);
-      allMarkers.push(m); // 参照を保持
-    }
   });
 }
 
@@ -1541,8 +1586,8 @@ async function productRegistrationAPI(products) {
         'accept': 'application/json',
         'shelf-API-Key': 'shelfsearchapikey',
         'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
+      }
+    ,  body: JSON.stringify({
         shelf_id: shelf_id,
         JANs: jans
       })
