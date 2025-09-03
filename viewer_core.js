@@ -1,16 +1,3 @@
-// --- Gate (defense in depth) ---
-(function(){
-  try{
-    var raw = localStorage.getItem('aiNavSession');
-    var ok=false;
-    if(raw){
-      var o=JSON.parse(raw||'{}');
-      if(o && o.issuedAt && (Date.now()-o.issuedAt)<=24*60*60*1000) ok=true;
-    }
-    if(!ok){ location.href = './login.html'; }
-  }catch(e){ location.href = './login.html'; }
-})();
-
 // グローバル変数
 let allData = [];
 let selectedStore = null;
@@ -179,7 +166,7 @@ async function loadStoresAndFloors() {
   try {
     console.log('店舗・フロア情報の取得を開始...');
     
-    const response = await fetch('https://ai-item-location-search-api-dev-1066573637137.us-central1.run.app/stores-with-floors', {
+    const response = await fetch('https://ai-item-location-search-api-1066573637137.us-central1.run.app/stores-with-floors', {
       method: 'GET',
       headers: {
         'accept': 'application/json',
@@ -202,10 +189,6 @@ async function loadStoresAndFloors() {
   }
 }
 
-
-
-
-
 // 最新情報を取得
 async function handleRefreshData() {
   if (!selectedStore || !selectedFloor) {
@@ -227,7 +210,7 @@ async function loadShelvesData() {
   try {
     console.log(`棚情報を取得中... (店舗: ${selectedStore}, フロア: ${selectedFloor})`);
     
-    const response = await fetch(`https://ai-item-location-search-api-dev-1066573637137.us-central1.run.app/shelves-with-product-flag?store_id=${selectedStore}&floor=${selectedFloor}&coord_src=pixel`, {
+    const response = await fetch(`https://ai-item-location-search-api-1066573637137.us-central1.run.app/shelves-with-product-flag?store_id=${selectedStore}&floor=${selectedFloor}&coord_src=pixel`, {
       method: 'GET',
       headers: {
         'accept': 'application/json',
@@ -267,7 +250,6 @@ async function loadShelvesData() {
     alert('棚情報の取得に失敗しました: ' + error.message);
   }
 }
-
 
 // 選択商品削除
 async function handleDeleteSelected() {
@@ -319,7 +301,7 @@ async function deleteAPI(items) {
     
     console.log(`削除API実行: 棚${shelf_id}, JANコード${jans.length}件`);
     
-    const response = await fetch('https://ai-item-location-search-api-dev-1066573637137.us-central1.run.app/placements', {
+    const response = await fetch('https://ai-item-location-search-api-1066573637137.us-central1.run.app/placements', {
       method: 'DELETE',
       headers: {
         'accept': 'application/json',
@@ -549,8 +531,6 @@ function updateMapTransform() {
     // ズームレベルに応じてマーカーサイズを更新
     allMarkers.forEach(marker => {
       updateMarkerSize(marker);
-      // ★ 追加：サイズ更新後に位置再計算（中心合わせを維持）
-      positionMarker(marker);
     });
   }
 }
@@ -571,42 +551,55 @@ function updateMarkerSize(marker) {
   } else {
     marker.classList.add('zoom-xlarge'); // 最大
   }
+  
+  // マーカーの位置も再計算（中心座標を維持）
+  updateMarkerPosition(marker);
 }
 
-// ★ 追加：現在のマーカーCSS幅（px）を取得
-function getMarkerPixelSize(marker) {
-  const style = window.getComputedStyle(marker);
-  const w = parseFloat(style.width) || 0;
-  const h = parseFloat(style.height) || 0;
-  // 正円/正方形想定なので幅基準でOK（高さとの差があっても半径補正の目的は満たす）
-  return Math.max(w, h);
-}
-
-// ★ 追加：中心合わせで left/top を再計算して適用
-function positionMarker(marker) {
-  const img = (mapContentElement && mapContentElement.querySelector("img")) || document.querySelector("#mapContainer img");
-  if (!img) return;
-
-  const imageNaturalWidth = img.naturalWidth;
-  const imageNaturalHeight = img.naturalHeight;
-  const imageDisplayWidth = img.clientWidth;
-  const imageDisplayHeight = img.clientHeight;
-
-  if (!imageNaturalWidth || !imageNaturalHeight) return;
-
-  const scaleX = imageDisplayWidth / imageNaturalWidth;
-  const scaleY = imageDisplayHeight / imageNaturalHeight;
-
+// マーカーの位置を再計算（中心座標を維持）
+function updateMarkerPosition(marker) {
   const originalX = parseFloat(marker.dataset.originalX);
   const originalY = parseFloat(marker.dataset.originalY);
-  if (Number.isNaN(originalX) || Number.isNaN(originalY)) return;
+  
+  if (isNaN(originalX) || isNaN(originalY)) return;
+  
+  // 現在の画像のスケール情報を取得
+  const mapImage = document.getElementById("mapImage");
+  if (!mapImage) return;
+  
+  const imageNaturalWidth = mapImage.naturalWidth;
+  const imageNaturalHeight = mapImage.naturalHeight;
+  const imageDisplayWidth = mapImage.clientWidth;
+  const imageDisplayHeight = mapImage.clientHeight;
+  
+  const scaleX = imageDisplayWidth / imageNaturalWidth;
+  const scaleY = imageDisplayHeight / imageNaturalHeight;
+  
+  // 現在のマーカーサイズ
+  const markerSize = getMarkerSize();
+  
+  // pixel座標にスケールを適用し、マーカーの中心が座標位置に来るよう調整
+  const scaledX = originalX * scaleX;
+  const scaledY = originalY * scaleY;
+  
+  // マーカーの中心を座標に合わせるため、サイズの半分だけオフセット
+  marker.style.left = `${scaledX - markerSize / 2}px`;
+  marker.style.top = `${scaledY - markerSize / 2}px`;
+}
 
-  const markerSize = getMarkerPixelSize(marker);
-  const left = originalX * scaleX - markerSize / 2;
-  const top  = originalY * scaleY - markerSize / 2;
-
-  marker.style.left = `${left}px`;
-  marker.style.top  = `${top}px`;
+// 現在のズームレベルに応じたマーカーサイズを返す
+function getMarkerSize() {
+  if (zoomLevel >= 3.5) {
+    return 8; // zoom-xsmall
+  } else if (zoomLevel >= 2.5) {
+    return 10; // zoom-small  
+  } else if (zoomLevel >= 1.5) {
+    return 12; // zoom-medium
+  } else if (zoomLevel >= 1.0) {
+    return 14; // zoom-large
+  } else {
+    return 16; // zoom-xlarge
+  }
 }
 
 // 指定エリアにズーム
@@ -698,7 +691,7 @@ async function loadShelfProducts(shelf_id) {
     showLoadingWithMessage("商品情報を読み込み中...");
     console.log(`商品情報を取得中... (棚ID: ${shelf_id})`);
     
-    const response = await fetch(`https://ai-item-location-search-api-dev-1066573637137.us-central1.run.app/shelf-products?shelf_id=${shelf_id}`, {
+    const response = await fetch(`https://ai-item-location-search-api-1066573637137.us-central1.run.app/shelf-products?shelf_id=${shelf_id}`, {
       method: 'GET',
       headers: {
         'accept': 'application/json',
@@ -849,32 +842,27 @@ function renderMarkers(mapImage) {
     m.textContent = shelf_id.split("_")[2];
     m.dataset.shelfId = shelf_id;
     m.dataset.hasProducts = hasProducts.toString();
-
-    // ★ 追加：元のピクセル座標を保持（中心合わせ再計算に使用）
-    m.dataset.originalX = String(shelfData.x);
-    m.dataset.originalY = String(shelfData.y);
+    // 座標データを保存（ズーム時の位置再計算用）
+    m.dataset.originalX = shelfData.x;
+    m.dataset.originalY = shelfData.y;
     
     // ズームレベルに応じたマーカーサイズクラスを追加
     updateMarkerSize(m);
-
-    // ★ 変更：中心合わせで配置（markerSize/2 を減算）
-    // まずは仮の位置を設定しDOMに追加 → 幅が確定 → 正しい中心補正で再配置
-    m.style.left = `${shelfData.x * scaleX}px`;
-    m.style.top  = `${shelfData.y * scaleY}px`;
     
-    // マップコンテンツ内にマーカーを追加
-    const mapContent = document.getElementById("mapContent");
-    if (mapContent) {
-      mapContent.appendChild(m);
-      allMarkers.push(m); // 参照を保持
-
-      // 現在の表示状態を適用
-      if (!markersVisible) {
-        m.style.display = "none";
-      }
-
-      // DOM反映後に中心補正を適用
-      positionMarker(m);
+    // ズームレベルに応じたマーカーサイズを取得
+    const markerSize = getMarkerSize();
+    
+    // pixel座標にスケールを適用し、マーカーの中心が座標位置に来るよう調整
+    const scaledX = shelfData.x * scaleX;
+    const scaledY = shelfData.y * scaleY;
+    
+    // マーカーの中心を座標に合わせるため、サイズの半分だけオフセット
+    m.style.left = `${scaledX - markerSize / 2}px`;
+    m.style.top = `${scaledY - markerSize / 2}px`;
+    
+    // 現在の表示状態を適用
+    if (!markersVisible) {
+      m.style.display = "none";
     }
     
     m.addEventListener("click", async (e) => {
@@ -887,6 +875,13 @@ function renderMarkers(mapImage) {
       // 棚選択処理 - APIから最新の商品データを取得
       await loadShelfProducts(shelf_id);
     });
+    
+    // マップコンテンツ内にマーカーを追加
+    const mapContent = document.getElementById("mapContent");
+    if (mapContent) {
+      mapContent.appendChild(m);
+      allMarkers.push(m); // 参照を保持
+    }
   });
 }
 
@@ -1580,14 +1575,14 @@ async function productRegistrationAPI(products) {
     
     console.log(`商品登録API実行: 棚${shelf_id}, JANコード${jans.length}件`);
     
-    const response = await fetch('https://ai-item-location-search-api-dev-1066573637137.us-central1.run.app/placements', {
+    const response = await fetch('https://ai-item-location-search-api-1066573637137.us-central1.run.app/placements', {
       method: 'POST',
       headers: {
         'accept': 'application/json',
         'shelf-API-Key': 'shelfsearchapikey',
         'Content-Type': 'application/json'
-      }
-    ,  body: JSON.stringify({
+      },
+      body: JSON.stringify({
         shelf_id: shelf_id,
         JANs: jans
       })
