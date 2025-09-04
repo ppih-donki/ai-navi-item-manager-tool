@@ -113,19 +113,19 @@
       <div class="input-method-selection">
         <label>入力方法:</label>
         <input type="radio" id="methodHandy" name="inputMethod" value="handy" checked>
-        <label for="methodHandy">ハンディターミナル</label>
+        <label for="methodHandy">csv取り込み（スキャンチェックリスト）</label>
         <input type="radio" id="methodManual" name="inputMethod" value="manual">
-        <label for="methodManual">手入力</label>
+        <label for="methodManual">JAN手入力</label>
       </div>
       
       <div id="handyTerminalInput" class="input-section">
-        <h3>ハンディターミナル入力</h3>
+        <h3>csv取り込み</h3>
         <input type="file" id="handyCSVFile" accept=".csv" style="display: none;">
-        <button id="importCSVBtn">取り込み</button>
+        <button id="importCSVBtn">取り込む</button>
       </div>
       
       <div id="manualInput" class="input-section" style="display: none;">
-        <h3>手動入力</h3>
+        <h3>手動入力（13桁未満のJANは、頭に０を付けて13桁にしてください）</h3>
         <div>
           <label for="manualJAN">JANコード:</label>
           <input type="text" id="manualJAN" placeholder="13桁の数字 (例: 0000000000001)" pattern="\d{13}" maxlength="13" title="13桁の数字で入力してください">
