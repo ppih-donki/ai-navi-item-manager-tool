@@ -1,4 +1,3 @@
-
 // グローバル変数
 let allData = [];
 let selectedStore = null;
@@ -1439,19 +1438,28 @@ function parseCSVLine(line) {
 
 // JANコードバリデーション関数
 function validateJANCode(jan) {
-  // 空文字チェック
-  if (!jan || jan.trim() === '') {
+  // 入力が未定義または空白のみ
+  if (jan == null) {
     return { valid: false, message: 'JANコードを入力してください' };
   }
-  
-  const trimmedJan = jan.trim();
-  
-  // フォーマットチェック（数字のみ、13桁）
-  if (!/^\d{13}$/.test(trimmedJan)) {
-    return { valid: false, message: 'JANコードは13桁の数字で入力してください' };
+  const raw = String(jan).trim();
+  if (raw === '') {
+    return { valid: false, message: 'JANコードを入力してください' };
   }
-  
-  return { valid: true, jan: trimmedJan };
+
+  // 数字のみ許可
+  if (!/^\d+$/.test(raw)) {
+    return { valid: false, message: 'JANコードは数字のみで入力してください' };
+  }
+
+  // 長さは1〜13桁を許容（14桁以上は不可）
+  if (raw.length > 13) {
+    return { valid: false, message: 'JANコードは最大13桁までです' };
+  }
+
+  // 13桁未満は左ゼロ埋めで13桁に正規化
+  const normalized = raw.padStart(13, '0');
+  return { valid: true, jan: normalized };
 }
 
 function handleManualJANAdd(shelf_id) {
@@ -1470,12 +1478,13 @@ function handleManualJANAdd(shelf_id) {
   
   // 重複チェック
   if (productAdditionList.some(item => item.jan === validatedJAN)) {
-    alert('既に追加されているJANコードです');
+    // すでに追加済み：何もせず、入力欄だけクリアして次スキャンへ
+    janInput.value = '';
     janInput.focus();
     return;
   }
   
-  productAdditionList.push({
+  productAdditionList.unshift({
     shelf_id: shelf_id,
     jan: validatedJAN,
     productName: validatedJAN, // 商品名の代わりにJANコードを表示
