@@ -1438,7 +1438,7 @@ function parseCSVLine(line) {
 
 // JANコードバリデーション関数
 function validateJANCode(jan) {
-  // 入力が未定義または空白のみ
+  // 空チェック
   if (jan == null) {
     return { valid: false, message: 'JANコードを入力してください' };
   }
@@ -1447,17 +1447,17 @@ function validateJANCode(jan) {
     return { valid: false, message: 'JANコードを入力してください' };
   }
 
-  // 数字のみ許可
+  // 数字以外は無効
   if (!/^\d+$/.test(raw)) {
     return { valid: false, message: 'JANコードは数字のみで入力してください' };
   }
 
-  // 長さは1〜13桁を許容（14桁以上は不可）
+  // 長さ：1〜13桁を許容。14桁以上は無効
   if (raw.length > 13) {
     return { valid: false, message: 'JANコードは最大13桁までです' };
   }
 
-  // 13桁未満は左ゼロ埋めで13桁に正規化
+  // 13桁未満は左ゼロ埋め
   const normalized = raw.padStart(13, '0');
   return { valid: true, jan: normalized };
 }
@@ -1469,7 +1469,8 @@ function handleManualJANAdd(shelf_id) {
   // JANコードバリデーション
   const validation = validateJANCode(jan);
   if (!validation.valid) {
-    alert(validation.message);
+    // 無効入力はアラートなしでスキップ（QR誤読対策）
+    janInput.value = '';
     janInput.focus();
     return;
   }
@@ -1478,7 +1479,6 @@ function handleManualJANAdd(shelf_id) {
   
   // 重複チェック
   if (productAdditionList.some(item => item.jan === validatedJAN)) {
-    // すでに追加済み：何もせず、入力欄だけクリアして次スキャンへ
     janInput.value = '';
     janInput.focus();
     return;
